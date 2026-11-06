@@ -26,7 +26,7 @@ file, removed from the anonymised output):
     knows when and where a neighbour contacted the City.
 
 Not claimed: for non-sensitive records the hexagon plus 6-hour bucket is a small class
-(29% of rows are unique on those two alone). That precision is required by the brief, so
+(77% of rows are unique on those two alone). That precision is required by the brief, so
 the residual risk is documented in docs/task5_atlantis.md rather than hidden.
 """
 import logging

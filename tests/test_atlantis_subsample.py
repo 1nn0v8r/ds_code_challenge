@@ -10,6 +10,7 @@ from shapely.geometry import Point, shape
 import atlantis_subsample
 from atlantis_subsample import (
     ARC_MINUTE_M,
+    SUBURB_NAME,
     SUBURB_NAME_FIELD,
     compute_centroid,
     distance_m,
@@ -169,13 +170,20 @@ def collection(*features):
     return json.dumps({"type": "FeatureCollection", "features": list(features)}).encode()
 
 
-FEATURE = {"type": "Feature", "properties": {SUBURB_NAME_FIELD: "ATLANTIS"},
+FEATURE = {"type": "Feature", "properties": {SUBURB_NAME_FIELD: SUBURB_NAME},
            "geometry": polygon(square(*CENTRE, 0.01))}
+NAMED = {"type": "Feature", "properties": {SUBURB_NAME_FIELD: SUBURB_NAME}}
+
+
+def test_the_suburb_is_the_official_one_used_by_the_service_request_data():
+    assert SUBURB_NAME == "ATLANTIS INDUSTRIAL"
+    assert SUBURB_NAME_FIELD == "OFC_SBRB_N"
+    assert "/MapServer/23/query" in suburb_query_url()
 
 
 def test_query_url_asks_for_the_named_suburb_as_wgs84_geojson():
-    url = suburb_query_url("atlantis")
-    assert "ATLANTIS" in url
+    url = suburb_query_url("atlantis industrial")
+    assert "ATLANTIS+INDUSTRIAL" in url
     assert "outSR=4326" in url
     assert "f=geojson" in url
     assert "returnGeometry=true" in url
@@ -194,9 +202,12 @@ def test_valid_suburb_payload_passes():
     json.dumps({"error": {"code": 500}}).encode(),
     collection(),
     collection(FEATURE, FEATURE),
-    collection({"type": "Feature", "properties": {}, "geometry": None}),
-    collection({"type": "Feature", "properties": {}}),
-    collection({"type": "Feature", "properties": {}, "geometry": {"type": "Point", "coordinates": [18.4, -33.5]}}),
+    collection({**NAMED, "geometry": None}),
+    collection(NAMED),
+    collection({**NAMED, "geometry": {"type": "Point", "coordinates": [18.4, -33.5]}}),
+    collection({**NAMED, "properties": None, "geometry": polygon(square(*CENTRE, 0.01))}),
+    collection({**NAMED, "properties": {SUBURB_NAME_FIELD: "ATLANTIS"}, "geometry": polygon(square(*CENTRE, 0.01))}),
+    collection({**NAMED, "properties": {"SBRB_NAME": "ATLANTIS"}, "geometry": polygon(square(*CENTRE, 0.01))}),
     collection("not a feature"),
 ])
 def test_bad_suburb_payloads_raise_value_error_so_the_fetch_retries(payload):
