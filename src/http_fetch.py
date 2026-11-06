@@ -13,6 +13,7 @@ Strategy (and why):
   5. With no network and no cache, fail with a clear error instead of producing output
      that silently lacks the data.
 """
+import http.client
 import logging
 import os
 import random
@@ -60,7 +61,9 @@ def fetch_bytes(
             try:
                 payload = opener(url, timeout)
                 validate(payload)
-            except (OSError, ValueError) as exc:
+            # HTTPException covers a connection dropped mid-download (IncompleteRead), which
+            # is not an OSError.
+            except (OSError, http.client.HTTPException, ValueError) as exc:
                 errors.append(f"{url} attempt {attempt}: {exc}")
                 if attempt == retries:
                     log.warning("giving up on %s after %d attempts (%s)", url, retries, exc)
