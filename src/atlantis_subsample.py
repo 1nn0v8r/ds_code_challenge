@@ -56,12 +56,15 @@ def validate_suburb_geojson(payload: bytes) -> None:
         data = json.loads(payload)
     except json.JSONDecodeError as exc:
         raise ValueError(f"not JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"expected a JSON object, got {type(data).__name__}")
     if "error" in data:
         raise ValueError(f"server error: {data['error']}")
     features = data.get("features") or []
     if len(features) != 1:
         raise ValueError(f"expected exactly 1 suburb polygon, got {len(features)}")
-    if features[0].get("geometry", {}).get("type") not in ("Polygon", "MultiPolygon"):
+    geometry = features[0].get("geometry") if isinstance(features[0], dict) else None
+    if not isinstance(geometry, dict) or geometry.get("type") not in ("Polygon", "MultiPolygon"):
         raise ValueError("suburb geometry is not a polygon")
 
 
