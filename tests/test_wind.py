@@ -1,24 +1,50 @@
-"""Tests for wind.py against generated .ods files.
+"""Tests for wind.py against generated spreadsheets.
 
-The real file has not been available (its endpoint returns 404), so these layouts are
-assumptions. They show the parser does what it intends, not that it reads the real file.
+REAL_LAYOUT copies the shape of the City's real file. Other layouts are variations the parser
+is meant to cope with. The opt-in live test at the end checks the real file itself.
 """
 import io
+import os
 import zipfile
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from wind import ODS_MIMETYPE, attach_wind, load_wind, parse_wind, validate_ods
+from wind import (
+    CACHE_FILE,
+    ODS_MIMETYPE,
+    attach_wind,
+    load_wind,
+    parse_wind,
+    validate_spreadsheet,
+)
 
 HEADER = ["Date & Time", "Wind Speed (m/s)", "Wind Direction (deg)"]
 
+REAL_LAYOUT = [
+    ["MultiStation:  Periodically: 01/01/2020 00:00-31/12/2020 23:59  Type: AVG 1 Hr.",
+     None, None, None, None],
+    [None, None, None, None, None],
+    ["Date & Time", "Atlantis AQM Site", "Atlantis AQM Site", "Goodwood AQM Station", "Goodwood AQM Station"],
+    [None, "Wind Dir V", "Wind Speed V", "Wind Dir V", "Wind Speed V"],
+    [None, "Deg", "m/s", "Deg", "m/s"],
+    ["01/02/2020 00:00", 173.0, 4.1, 247.8, 19.2],
+    ["01/02/2020 01:00", "NoData", "NoData", 247.0, 17.9],
+    ["13/02/2020 02:00", "Down", "Down", 246.4, 17.1],
+    ["13/02/2020 03:00", "<Samp", "<Samp", 245.1, 15.7],
+    ["Minimum", 173.0, 4.1, 245.1, 15.7],
+    ["MinDate", "01/02/2020 00:00", "01/02/2020 00:00", "13/02/2020 03:00", "13/02/2020 03:00"],
+    ["Avg", 173.0, 4.1, 246.6, 17.5],
+    ["Num", 1, 1, 4, 4],
+    ["Data[%]", 25.0, 25.0, 100.0, 100.0],
+]
 
-def make_ods(sheets) -> bytes:
-    """Build a real .ods file. `sheets` maps sheet name to a list of rows."""
+
+def make_ods(sheets, engine="odf") -> bytes:
+    """Build a real spreadsheet. `sheets` maps sheet name to a list of rows."""
     buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="odf") as writer:
+    with pd.ExcelWriter(buffer, engine=engine) as writer:
         for name, rows in sheets.items():
             pd.DataFrame(rows).to_excel(writer, sheet_name=name, header=False, index=False)
     return buffer.getvalue()
@@ -40,10 +66,14 @@ def requests(*created):
                          "creation_timestamp": list(created)})
 
 
-# validate_ods
+# validate_spreadsheet
 
 def test_a_real_ods_file_is_accepted():
-    validate_ods(one_sheet(HEADER))
+    validate_spreadsheet(one_sheet(HEADER))
+
+
+def test_a_real_xlsx_file_is_accepted():
+    validate_spreadsheet(make_ods({"Sheet1": [HEADER]}, engine="openpyxl"))
 
 
 def zip_bytes(members, compression=zipfile.ZIP_STORED) -> bytes:
@@ -61,15 +91,15 @@ def zip_bytes(members, compression=zipfile.ZIP_STORED) -> bytes:
     zip_bytes({"content.xml": b"<x/>"}),
     zip_bytes({"mimetype": b"application/zip"}),
 ])
-def test_things_that_are_not_ods_files_raise_value_error(payload):
+def test_things_that_are_not_spreadsheets_raise_value_error(payload):
     with pytest.raises(ValueError):
-        validate_ods(payload)
+        validate_spreadsheet(payload)
 
 
-def test_truncated_ods_raises_value_error():
+def test_truncated_spreadsheet_raises_value_error():
     payload = one_sheet(HEADER, ["2020-01-01 00:00", 1.0, 90.0])
     with pytest.raises(ValueError):
-        validate_ods(payload[: len(payload) // 2])
+        validate_spreadsheet(payload[: len(payload) // 2])
 
 
 @pytest.mark.parametrize("compression", [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED])
@@ -81,7 +111,40 @@ def test_corrupt_member_raises_value_error(compression):
     payload[middle] ^= 0xFF
     payload[middle + 1] ^= 0xFF
     with pytest.raises(ValueError):
-        validate_ods(bytes(payload))
+        validate_spreadsheet(bytes(payload))
+
+
+# The real layout
+
+@pytest.mark.parametrize("engine", ["odf", "openpyxl"])
+def test_real_layout_gives_atlantis_readings_only(engine):
+    wind = parse_wind(make_ods({"Sheet1": REAL_LAYOUT}, engine=engine))
+    assert wind.wind_speed[0] == 4.1
+    assert wind.wind_direction[0] == 173.0
+    assert 19.2 not in set(wind.wind_speed)
+
+
+def test_real_layout_status_words_become_null_and_summary_rows_are_dropped():
+    wind = parse_wind(make_ods({"Sheet1": REAL_LAYOUT}))
+    assert len(wind) == 4
+    assert wind.wind_speed.notna().sum() == 1
+    assert wind.wind_direction.notna().sum() == 1
+
+
+def test_real_layout_dates_are_day_first():
+    wind = parse_wind(make_ods({"Sheet1": REAL_LAYOUT}))
+    assert list(wind.wind_timestamp.dt.strftime("%Y-%m-%d %H:%M")) == [
+        "2020-02-01 00:00", "2020-02-01 01:00", "2020-02-13 02:00", "2020-02-13 03:00"]
+
+
+def test_a_site_name_in_a_merged_cell_reaches_both_its_columns():
+    wind = parse_wind(one_sheet(
+        ["Date & Time", "Goodwood", None, "Atlantis", None],
+        [None, "Wind Dir", "Wind Speed", "Wind Dir", "Wind Speed"],
+        ["01/02/2020 00:00", 90.0, 9.0, 10.0, 1.0],
+    ))
+    assert wind.wind_speed[0] == 1.0
+    assert wind.wind_direction[0] == 10.0
 
 
 # parse_wind
@@ -219,11 +282,11 @@ def test_load_wind_downloads_validates_parses_and_caches(tmp_path):
     payload = one_sheet(HEADER, ["2020-01-01 00:00", 1.0, 2.0])
     wind = load_wind(tmp_path, urls=["https://x.example/w"], opener=lambda url, timeout: payload)
     assert len(wind) == 1
-    assert (tmp_path / "Wind_direction_and_speed_2020.ods").read_bytes() == payload
+    assert (tmp_path / CACHE_FILE).read_bytes() == payload
 
 
 def test_load_wind_falls_back_to_the_cache_when_the_download_fails(tmp_path):
-    (tmp_path / "Wind_direction_and_speed_2020.ods").write_bytes(one_sheet(HEADER, ["2020-01-01 00:00", 1.0, 2.0]))
+    (tmp_path / CACHE_FILE).write_bytes(one_sheet(HEADER, ["2020-01-01 00:00", 1.0, 2.0]))
 
     def down(url, timeout):
         raise OSError("down")
@@ -246,6 +309,24 @@ def test_time_zones_are_aligned_rather_than_compared_as_text():
     # 10:00 UTC is 12:00 in Cape Town.
     out = attach_wind(requests("2020-01-01 10:00:00+00:00"), WIND)
     assert out.wind_speed[0] == 1.0
+
+
+def test_a_blank_reading_is_skipped_for_the_next_usable_one():
+    wind = wind_frame(("2020-01-01 12:00", np.nan, np.nan), ("2020-01-01 12:50", 2.0, 20.0))
+    out = attach_wind(requests("2020-01-01 12:05:00+02:00"), wind)
+    assert out.wind_speed[0] == 2.0
+
+
+def test_a_blank_reading_alone_gives_nulls():
+    wind = wind_frame(("2020-01-01 12:00", np.nan, np.nan), ("2020-01-02 12:00", 2.0, 20.0))
+    assert attach_wind(requests("2020-01-01 12:05:00+02:00"), wind).wind_speed.isna().all()
+
+
+def test_a_reading_with_only_one_value_is_still_used():
+    wind = wind_frame(("2020-01-01 12:00", 3.0, np.nan))
+    out = attach_wind(requests("2020-01-01 12:05:00+02:00"), wind)
+    assert out.wind_speed[0] == 3.0
+    assert np.isnan(out.wind_direction[0])
 
 
 def test_a_request_outside_the_tolerance_gets_nulls():
@@ -286,3 +367,20 @@ def test_empty_requests_are_handled():
     out = attach_wind(requests(), WIND)
     assert len(out) == 0
     assert {"wind_timestamp", "wind_speed", "wind_direction"} <= set(out.columns)
+
+
+@pytest.mark.network
+@pytest.mark.skipif(not os.environ.get("RUN_NETWORK"), reason="set RUN_NETWORK=1 to hit the City portal")
+def test_live_file_matches_the_summary_rows_printed_in_the_file_itself(tmp_path):
+    wind = load_wind(tmp_path)
+    assert len(wind) == 8784  # Hourly for all of 2020, a leap year.
+    # Atlantis figures from the file's own Num, Minimum, Maximum and Avg rows.
+    assert wind.wind_speed.notna().sum() == 2324
+    assert wind.wind_direction.notna().sum() == 2324
+    assert wind.wind_speed.min() == 0.4
+    assert wind.wind_speed.max() == 11.2
+    assert wind.wind_direction.min() == 0.1
+    assert wind.wind_direction.max() == 358.0
+    assert wind.wind_speed.mean() == pytest.approx(4.0, abs=0.1)
+    assert wind.wind_timestamp.min() == pd.Timestamp("2020-01-01 00:00", tz="Africa/Johannesburg")
+    assert wind.wind_timestamp.max() == pd.Timestamp("2020-12-31 23:00", tz="Africa/Johannesburg")

@@ -1,24 +1,28 @@
 """Task 5.2: download the Atlantis wind data and attach it to service requests.
 
-STATUS: the parser is written against an ASSUMED layout, because the City's endpoint was
-returning 404 for every URL variant while this was built (checked 2026-11-06). It has only
-been tested against a small synthetic file generated in tests/. Run it against the real
-file before trusting it; see docs/task5_atlantis.md.
+Source: the download link in the brief returned 404 when this was built (checked 2026-11-07),
+so the City's own open data portal copy is tried first and the brief's links are kept as
+fallbacks. The portal copy is Wind.xlsx, not the .ods the brief names; either is accepted.
 
-Assumed layout: an OpenDocument spreadsheet with a header row (possibly below some title
-rows) that has a date/time column, a wind speed column and a wind direction column.
+Real layout: one sheet with a title row, a row of site names, a row of column names (Wind Dir
+V, Wind Speed V) and a row of units, then hourly readings from seven sites side by side,
+then summary rows (Minimum, Avg, ...). Missing readings are text such as NoData or Down.
 Columns are found by keyword, not position, and a separate Date and Time column pair is
 supported. Timestamps are taken to be local South African time unless they carry a zone, and
 text dates are read day first.
 
-Site selection: the brief wants the Atlantis site, so if the file covers several sites the
-sheet or columns naming Atlantis are used. If they cannot be told apart this raises rather
-than guessing, because another site's wind would look perfectly plausible.
+Site selection: the brief wants the Atlantis site, so the sheet or columns naming Atlantis
+are used. If they cannot be told apart this raises rather than guessing, because another
+site's wind would look perfectly plausible.
+
+Coverage: the Atlantis sensor only reported for 26.5% of 2020 (January to March and October
+to November), so many requests legitimately get no wind. No other site is substituted.
 """
 import io
 import logging
 import re
 import zipfile
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -30,6 +34,7 @@ from timing import timed
 log = logging.getLogger(__name__)
 
 WIND_URLS = [
+    "https://www.arcgis.com/sharing/rest/content/items/31ef242a23484e79bbb19d6b29203179/data",
     "https://www.capetown.gov.za/_layouts/OpenDataPortalHandler/DownloadHandler.ashx"
     "?DocumentName=Wind_direction_and_speed_2020.ods&DatasetDocument="
     "https%3A%2F%2Fcityapps.capetown.gov.za%2Fsites%2Fopendatacatalog%2FDocuments%2F"
@@ -38,29 +43,32 @@ WIND_URLS = [
     "Wind_direction_and_speed_2020.ods",
 ]
 ODS_MIMETYPE = b"application/vnd.oasis.opendocument.spreadsheet"
+CACHE_FILE = "wind_2020_spreadsheet"
 LOCAL_TZ = "Africa/Johannesburg"
 SITE = "atlantis"
 HEADER_SCAN_ROWS = 30
-# Default match window for attaching a reading to a request. Set from the reading interval
-# once the real file is seen (hourly data would justify 30 to 60 minutes).
+# Readings are hourly averages, so the nearest one is normally within 30 minutes. An hour
+# also lets a request use the next reading when the nearest is missing, but no further.
 DEFAULT_TOLERANCE = pd.Timedelta(hours=1)
 
 WIND_COLUMNS = ["wind_timestamp", "wind_speed", "wind_direction"]
 
 
-def validate_ods(payload: bytes) -> None:
+def validate_spreadsheet(payload: bytes) -> None:
     """Reject HTML error pages and truncated downloads before they reach the cache."""
     if not payload.startswith(b"PK"):
-        raise ValueError("payload is not a zip/ODS file (got %r)" % payload[:20])
+        raise ValueError("payload is not a spreadsheet file (got %r)" % payload[:20])
     try:
         with zipfile.ZipFile(io.BytesIO(payload)) as zf:
-            if zf.read("mimetype").strip() != ODS_MIMETYPE:
-                raise ValueError("zip is not an OpenDocument spreadsheet")
+            names = set(zf.namelist())
+            is_ods = "mimetype" in names and zf.read("mimetype").strip() == ODS_MIMETYPE
+            if not (is_ods or "xl/workbook.xml" in names):
+                raise ValueError("zip is not an .ods or .xlsx spreadsheet")
             bad = zf.testzip()
             if bad:
-                raise ValueError(f"corrupt member in ODS: {bad}")
-    except (zipfile.BadZipFile, KeyError) as exc:
-        raise ValueError(f"invalid ODS: {exc}") from exc
+                raise ValueError(f"corrupt member in spreadsheet: {bad}")
+    except (zipfile.BadZipFile, zlib.error) as exc:
+        raise ValueError(f"invalid spreadsheet: {exc}") from exc
 
 
 def _pick_site_column(columns: list[int], cells: list[str], label: str) -> int:
@@ -75,7 +83,13 @@ def _pick_site_column(columns: list[int], cells: list[str], label: str) -> int:
 
 def _find_header(raw: pd.DataFrame) -> tuple[int, dict] | None:
     for i in range(min(HEADER_SCAN_ROWS, len(raw))):
-        cells = [str(v).strip().lower() if pd.notna(v) else "" for v in raw.iloc[i]]
+        # A column's label includes the row above, which is where the real file names the
+        # site. Filled forward so a site name in a merged cell reaches all its columns.
+        above = raw.iloc[i - 1].astype(object).ffill() if i else [None] * raw.shape[1]
+        cells = [
+            " ".join(str(v).strip().lower() for v in pair if pd.notna(v))
+            for pair in zip(above, raw.iloc[i])
+        ]
         speeds, directions, found = [], [], {}
         for j, text in enumerate(cells):
             if "speed" in text:
@@ -111,7 +125,7 @@ def _parse_timestamps(stamp: pd.Series) -> pd.Series:
 
 def parse_wind(payload: bytes, tz: str = LOCAL_TZ) -> pd.DataFrame:
     """Return a DataFrame with wind_timestamp (tz-aware), wind_speed, wind_direction."""
-    sheets = pd.read_excel(io.BytesIO(payload), engine="odf", sheet_name=None, header=None)
+    sheets = pd.read_excel(io.BytesIO(payload), sheet_name=None, header=None)
     site_sheets = {name: raw for name, raw in sheets.items() if SITE in str(name).lower()}
     named_site = bool(site_sheets)
     frames = []
@@ -173,8 +187,7 @@ def parse_wind(payload: bytes, tz: str = LOCAL_TZ) -> pd.DataFrame:
 
 def load_wind(cache_dir: Path, urls=None, **fetch_kwargs) -> pd.DataFrame:
     payload, source = fetch_bytes(
-        urls or WIND_URLS, Path(cache_dir) / "Wind_direction_and_speed_2020.ods", validate_ods,
-        **fetch_kwargs,
+        urls or WIND_URLS, Path(cache_dir) / CACHE_FILE, validate_spreadsheet, **fetch_kwargs
     )
     with timed(log, f"parse wind data (from {'cache' if source == 'cache' else 'network'})"):
         return parse_wind(payload)
@@ -185,10 +198,12 @@ def attach_wind(
 ) -> pd.DataFrame:
     """Attach the nearest wind reading within `tolerance` of each request's creation time.
 
-    Nearest (either side) is used because a reading is a measurement at a point in time,
-    not a state that persists until the next reading. Rows with no reading in tolerance get
-    nulls, and the count is logged.
+    Nearest (either side) is used because a reading describes the time around it, not a
+    state that persists until the next reading. Hours with no usable reading are skipped, so
+    a request never matches a blank while a real reading is in tolerance. Rows with no
+    reading in tolerance get nulls, and the count is logged.
     """
+    wind = wind.dropna(subset=["wind_speed", "wind_direction"], how="all")
     created = pd.to_datetime(sr["creation_timestamp"], utc=True, errors="coerce")
     bad = int(created.isna().sum())
     if bad:

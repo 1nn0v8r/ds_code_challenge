@@ -7,3 +7,4 @@ numpy>=1.26
 pyproj>=3.6
 shapely>=2.0
 odfpy>=1.4
+openpyxl>=3.1
