@@ -151,3 +151,25 @@ def test_live_extract_matches_reference():
     extracted = extract_hexes(s3, BUCKET)
     assert compare_to_reference(extracted, load_reference(s3))["matches"]
     assert validate(extracted).status == "PASS"
+
+
+def test_a_feature_that_is_not_an_object_scores_zero_but_does_not_crash(schema):
+    coll = make_collection()
+    coll["features"][0] = "not a feature"
+    report = score_collection(coll, schema)
+    assert report.rule_pass_rates["is_feature"] < 1.0
+
+
+def test_missing_centroid_or_ring_fails_those_rules_but_does_not_crash(schema):
+    coll = make_collection()
+    del coll["features"][0]["properties"]["centroid_lat"]
+    coll["features"][1]["geometry"]["coordinates"] = [[]]
+    report = score_collection(coll, schema)
+    assert report.rule_pass_rates["centroid_inside_polygon_bbox"] < 1.0
+
+
+@pytest.mark.parametrize("section", ["feature_rules", "dataset_rules"])
+def test_a_misspelt_rule_in_the_schema_raises_rather_than_being_ignored(schema, section):
+    schema[section].append({"check": "no_such_rule", "weight": 1})
+    with pytest.raises(ValueError, match="unknown"):
+        score_collection(make_collection(5), schema)

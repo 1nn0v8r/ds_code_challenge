@@ -236,3 +236,8 @@ def test_real_opener_truncated_every_time_raises_fetch_error(server, tmp_path):
     with pytest.raises(FetchError):
         real_fetch(server, tmp_path)
     assert not (tmp_path / "file.bin").exists()
+
+
+def test_no_urls_at_all_falls_through_to_the_cache_check(fetch):
+    with pytest.raises(FetchError):
+        fetch([])
