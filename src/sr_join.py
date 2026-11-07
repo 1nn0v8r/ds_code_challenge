@@ -12,6 +12,7 @@ above the threshold.
 """
 
 import argparse
+import http.client
 import json
 import logging
 import re
@@ -86,17 +87,24 @@ def download(url: str, dest: Path, retries: int = 4, timeout: int = 60) -> Path:
         try:
             with timed(log, f"download {url.rsplit('/', 1)[-1]}"):
                 with urllib.request.urlopen(url, timeout=timeout) as resp, open(tmp, "wb") as fh:
+                    expected = resp.headers.get("Content-Length")
+                    written = 0
                     while chunk := resp.read(1 << 20):
-                        fh.write(chunk)
+                        written += fh.write(chunk)
+            # Reading in chunks does not raise when a connection drops early, and this file
+            # would then be reused forever, so check that all of it arrived.
+            if expected is not None and written != int(expected):
+                raise OSError(f"truncated download: got {written} of {expected} bytes")
             tmp.replace(dest)
             return dest
-        except OSError as exc:
+        except (OSError, http.client.HTTPException) as exc:
             if attempt == retries:
+                tmp.unlink(missing_ok=True)
                 raise
             wait = 2**attempt
             log.warning("download failed (%s), retry %d/%d in %ds", exc, attempt, retries, wait)
             time.sleep(wait)
-    raise AssertionError("unreachable")
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def load_hex_index(geojson_path: Path) -> set[str]:
@@ -219,7 +227,7 @@ def join_service_requests(sr: pd.DataFrame, hexes: set[str], max_rate: float) ->
     out = drop_export_artifacts(sr)
     out[INDEX_COLUMN] = index
     if len(out) != len(sr):
-        raise AssertionError("row count changed during join")
+        raise AssertionError("row count changed during join")  # pragma: no cover
     return out
 
 
