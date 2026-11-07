@@ -125,6 +125,8 @@ shared with that stated.
 
 - `tests/test_atlantis_subsample.py`, `test_wind.py`, `test_http_fetch.py` and `test_anonymise.py`
   cover the behaviour above without needing a network.
+- `tests/test_task_runners.py` runs `run_atlantis.py` end to end, with only the two downloads
+  replaced, for every exit code and for `--skip-wind`.
 - The live test checks the real wind file against the summary rows printed in the file: 8,784
   hourly rows, 2,324 valid Atlantis readings, speed from 0.4 to 11.2 m/s, direction from 0.1 to 358
   degrees.
