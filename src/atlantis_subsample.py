@@ -1,17 +1,16 @@
-"""Task 5.1: subsample service requests within 1 arc-minute of an official suburb's centroid.
+"""Task 5.1: subsample service requests within 1 arc-minute of the Atlantis centroid.
 
-Suburb choice: the brief asks for an official suburb in the proximity of Atlantis. ATLANTIS
-INDUSTRIAL is used because it is the only official suburb with Atlantis in its name, and it
-is the same value the official_suburb column of sr_hex.csv.gz holds.
+Suburb choice: ATLANTIS, taken from the "Major suburbs" layer of the Western Cape GIS server.
+The "Official Planning Suburbs" layers on that server list only ATLANTIS INDUSTRIAL under
+that name, which is an industrial area rather than the suburb of Atlantis, so they are not
+used.
 
 Centroid method (computed, not hard coded):
-  1. Download that polygon from the "Official Planning Suburbs (February 2019)" layer of the
-     Western Cape GIS server (ArcGIS REST query, GeoJSON, WGS84), the newest official layer
-     it publishes.
+  1. Download the ATLANTIS polygon from that layer (ArcGIS REST query, GeoJSON, WGS84).
   2. Project to UTM zone 34S (EPSG:32734, metres, suits the Cape) and take the polygon's
      area-weighted centroid there, then convert back to lat/lon. A centroid taken directly
      in degrees distorts east-west distances; for this polygon the difference is under
-     0.1 m, so it is immaterial here but the projected method stays correct elsewhere.
+     1 m, so it is immaterial here but the projected method stays correct elsewhere.
 
 Distance rule: "within 1 minute" is read as within 1 arc-minute of the centroid, taken as a
 geodesic distance of at most 1852 m (1 nautical mile) on the WGS84 ellipsoid. That is a
@@ -37,10 +36,10 @@ log = logging.getLogger(__name__)
 
 SUBURB_LAYER_URL = (
     "https://gis.westerncape.gov.za/server2/rest/services/SpatialDataWarehouse/"
-    "CoCT_Management_Boundaries/MapServer/23/query"
+    "CoCT_Management_Boundaries/MapServer/15/query"
 )
-SUBURB_NAME_FIELD = "OFC_SBRB_N"
-SUBURB_NAME = "ATLANTIS INDUSTRIAL"
+SUBURB_NAME_FIELD = "SBRB_NAME"
+SUBURB_NAME = "ATLANTIS"
 METRIC_CRS = "EPSG:32734"
 ARC_MINUTE_M = 1852.0
 GEOD = Geod(ellps="WGS84")
