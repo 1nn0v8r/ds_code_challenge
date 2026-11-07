@@ -49,6 +49,7 @@ def main(argv=None) -> int:
         centre = get_atlantis_centroid(args.data_dir)
         sample = subsample(sr, centre)
 
+        wind = None
         if args.skip_wind:
             log.warning("--skip-wind set: output will have NO wind columns")
             augmented = sample
@@ -64,7 +65,7 @@ def main(argv=None) -> int:
         args.out_dir.mkdir(parents=True, exist_ok=True)
         augmented.to_csv(args.out_dir / "atlantis_augmented.csv.gz", index=False)
 
-        result = anonymise(augmented)
+        result = anonymise(augmented, wind=wind)
         check = check_precision(augmented, result.anonymised)
         if not check["ok"]:
             log.error("anonymisation self-check failed: %s", check["problems"])
