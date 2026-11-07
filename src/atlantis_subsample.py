@@ -14,7 +14,7 @@ Centroid method (computed, not hard coded):
 
 Distance rule: "within 1 minute" is read as within 1 arc-minute of the centroid, taken as a
 geodesic distance of at most 1852 m (1 nautical mile) on the WGS84 ellipsoid. That is a
-convention: a true arc-minute of latitude is about 1848 m here. A circle is used rather than
+convention: a true arc-minute of latitude is about 1849 m here. A circle is used rather than
 a lat/lon box because a minute of longitude is only about 1.54 km at this latitude, which
 would make a box lopsided.
 """
