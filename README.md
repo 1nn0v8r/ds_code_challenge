@@ -3,6 +3,46 @@
 
 # City of Cape Town - Data Science Unit Code Challenge
 
+## Submission: Data Engineering
+
+This fork completes the Data Engineering tasks: sections 1, 2 and 5 of the challenge below.
+
+**To run everything, execute `src/run_all.py`, using Python 3.13:**
+
+```bash
+python3.13 -m venv .venv                                  # on Windows: py -3.13 -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt   # on Linux or macOS: .venv/bin/python
+.venv/Scripts/python src/run_all.py
+```
+
+It needs no input and takes under a minute. All inputs are downloaded automatically to `data/`,
+and results are written to `output/`. It exits `0` if every task succeeded. Tested on Python 3.13
+on Windows only. On Python 3.15, `PyYAML` had no pre-built package when this was tested.
+
+| Task | Script | Output | Method and decisions |
+|---|---|---|---|
+| 1. S3 Select extraction | `src/run_extraction.py` | `output/city-hex-polygons-8-extracted.geojson` | [docs/task1_data_extraction.md](docs/task1_data_extraction.md) |
+| 2. Join requests to hexagons | `src/sr_join.py` | `output/sr_hex_joined.csv.gz` | [docs/task2_sr_hex_join.md](docs/task2_sr_hex_join.md) |
+| 5. Atlantis, wind, anonymisation | `src/run_atlantis.py` | `output/atlantis/` | [docs/task5_atlantis.md](docs/task5_atlantis.md) |
+
+To run the tests, which need no network:
+
+```bash
+.venv/Scripts/python -m pytest
+```
+
+Things to know before relying on the output:
+
+- **Wind source:** the wind link in the challenge returns 404, so the script uses the City's open
+  data portal copy. If every wind source is down and no earlier copy exists, Task 5 fails with exit
+  code 5. `python src/run_all.py --skip-wind` then runs Task 5 without wind.
+- **Wind coverage:** the Atlantis sensor only reported for 26.5% of 2020, so 43% of the Atlantis
+  requests have a wind reading.
+- **Personal data:** in `output/atlantis/`, only `atlantis_anonymised.csv.gz` and `summary.json` are
+  safe to share. The other two files are not anonymised.
+
+AI assistance is logged in [AI_log.md](AI_log.md).
+
 ## Purpose
 
 The purpose of this challenge is to evaluate the skills of prospective Data Scientists, Engineers, Analysts and Front End Developer for positions in the City of Cape Town's Data Science unit. 
