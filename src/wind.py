@@ -219,7 +219,7 @@ def attach_wind(
     reading in tolerance get nulls, and the count is logged.
     """
     wind = wind.dropna(subset=["wind_speed", "wind_direction"], how="all")
-    created = pd.to_datetime(sr["creation_timestamp"], utc=True, errors="coerce")
+    created = pd.to_datetime(sr["creation_timestamp"], utc=True, errors="coerce", format="ISO8601")
     bad = int(created.isna().sum())
     if bad:
         log.warning("%d requests have an unparseable creation_timestamp; no wind attached", bad)

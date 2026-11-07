@@ -26,9 +26,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import shapely
 from pyproj import Geod, Transformer
 from shapely.geometry import shape
-from shapely.ops import transform as shapely_transform
 
 from http_fetch import fetch_bytes
 from timing import timed
@@ -86,7 +86,7 @@ def compute_centroid(geometry: dict) -> tuple[float, float]:
         poly = poly.buffer(0)
     to_metric = Transformer.from_crs("EPSG:4326", METRIC_CRS, always_xy=True).transform
     to_wgs = Transformer.from_crs(METRIC_CRS, "EPSG:4326", always_xy=True).transform
-    c = shapely_transform(to_metric, poly).centroid
+    c = shapely.transform(poly, to_metric, interleaved=False).centroid
     lon, lat = to_wgs(c.x, c.y)
     return lat, lon
 

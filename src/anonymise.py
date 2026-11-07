@@ -98,9 +98,11 @@ class AnonymisationResult:
 
 def floor_to_bucket(series: pd.Series, bucket: str = BUCKET) -> pd.Series:
     """Floor timestamps to a bucket in local time. Blank or unparseable values become empty."""
-    ts = pd.to_datetime(series.replace("", np.nan), utc=True, errors="coerce").dt.tz_convert(
-        LOCAL_TZ
-    )
+    # ISO8601 handles both whole and fractional seconds. Without it, pandas guesses one format
+    # from the first value and silently blanks any value in another.
+    ts = pd.to_datetime(
+        series.replace("", np.nan), utc=True, errors="coerce", format="ISO8601"
+    ).dt.tz_convert(LOCAL_TZ)
     floored = ts.dt.floor(bucket)
     return floored.dt.strftime("%Y-%m-%d %H:%M").fillna("")
 
