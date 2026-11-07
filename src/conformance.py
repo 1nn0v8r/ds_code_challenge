@@ -3,6 +3,7 @@
 The expected schema lives in config/hex_schema.yaml. Each rule earns partial credit, so a
 handful of bad features lowers the score proportionally instead of failing the dataset.
 """
+
 import logging
 import re
 from collections import Counter
@@ -78,7 +79,10 @@ def _feature_check(name: str, feature, p: dict) -> bool:
     if name == "is_feature":
         return feature.get("type") == "Feature"
     if name == "index_format":
-        return isinstance(props.get("index"), str) and re.match(p["pattern"], props["index"]) is not None
+        return (
+            isinstance(props.get("index"), str)
+            and re.match(p["pattern"], props["index"]) is not None
+        )
     if name == "index_resolution":
         return h3_resolution(props.get("index")) == p["expected"]
     if name == "resolution_property":
@@ -117,7 +121,9 @@ def _dataset_check(name: str, collection: dict, p: dict) -> bool:
     if name == "feature_count_between":
         return p["min"] <= len(features) <= p["max"]
     if name == "unique_property":
-        values = [(f.get("properties") or {}).get(p["property"]) for f in features if isinstance(f, dict)]
+        values = [
+            (f.get("properties") or {}).get(p["property"]) for f in features if isinstance(f, dict)
+        ]
         return len(values) == len(set(values))
     raise ValueError(f"unknown dataset rule: {name}")
 
@@ -168,7 +174,10 @@ def validate(collection: dict, schema: dict | None = None) -> ConformanceReport:
         log.log(level, "rule %-28s pass rate %.4f", name, rate)
     log.info(
         "conformance score %.4f (features %.4f, dataset %.4f) -> %s",
-        report.score, report.feature_score, report.dataset_score, report.status,
+        report.score,
+        report.feature_score,
+        report.dataset_score,
+        report.status,
     )
     if report.status == "FAIL":
         raise ConformanceError(f"conformance score {report.score:.4f} below warn threshold")

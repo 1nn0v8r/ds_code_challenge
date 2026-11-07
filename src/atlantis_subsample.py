@@ -18,6 +18,7 @@ convention: a true arc-minute of latitude is about 1849 m here. A circle is used
 a lat/lon box because a minute of longitude is only about 1.54 km at this latitude, which
 would make a box lopsided.
 """
+
 import json
 import logging
 import urllib.parse
@@ -114,7 +115,9 @@ def distance_m(lat: pd.Series, lon: pd.Series, centre: tuple[float, float]) -> n
     return out
 
 
-def subsample(sr: pd.DataFrame, centre: tuple[float, float], radius_m: float = ARC_MINUTE_M) -> pd.DataFrame:
+def subsample(
+    sr: pd.DataFrame, centre: tuple[float, float], radius_m: float = ARC_MINUTE_M
+) -> pd.DataFrame:
     """Rows within radius_m of centre. Requests without usable coordinates are excluded."""
     with timed(log, f"distance filter on {len(sr)} requests"):
         dist = distance_m(sr["latitude"], sr["longitude"], centre)
@@ -123,6 +126,9 @@ def subsample(sr: pd.DataFrame, centre: tuple[float, float], radius_m: float = A
     out["distance_to_centroid_m"] = np.round(dist[mask], 1)
     log.info(
         "subsample: %d of %d requests within %.0f m of centroid (%d had no usable coordinates)",
-        len(out), len(sr), radius_m, int(np.isnan(dist).sum()),
+        len(out),
+        len(sr),
+        radius_m,
+        int(np.isnan(dist).sum()),
     )
     return out

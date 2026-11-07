@@ -80,14 +80,18 @@ def test_index_is_string_so_zero_survives_csv_round_trip(hexes, tmp_path):
 
 
 def test_threshold_raises_above_and_passes_at_or_below():
-    over = JoinStats(total=1000, missing_coords=0, partial_coords=0, invalid_coords=0, outside_grid=2)
+    over = JoinStats(
+        total=1000, missing_coords=0, partial_coords=0, invalid_coords=0, outside_grid=2
+    )
     with pytest.raises(JoinThresholdError):
         enforce_threshold(over, 0.001)
     enforce_threshold(over, 0.002)
 
 
 def test_threshold_denominator_is_located_rows_only():
-    stats = JoinStats(total=1000, missing_coords=900, partial_coords=0, invalid_coords=0, outside_grid=1)
+    stats = JoinStats(
+        total=1000, missing_coords=900, partial_coords=0, invalid_coords=0, outside_grid=1
+    )
     assert stats.located == 100
     assert stats.error_rate == pytest.approx(0.01)
 
@@ -98,8 +102,13 @@ def test_threshold_with_no_located_rows_does_not_divide_by_zero():
 
 
 def test_join_service_requests_preserves_rows_and_adds_column(hexes):
-    sr = pd.DataFrame({"notification_number": [1, 2, 3], "Latitude": [CBD[0], None, NEARBY[0]],
-                       "Longitude": [CBD[1], None, NEARBY[1]]})
+    sr = pd.DataFrame(
+        {
+            "notification_number": [1, 2, 3],
+            "Latitude": [CBD[0], None, NEARBY[0]],
+            "Longitude": [CBD[1], None, NEARBY[1]],
+        }
+    )
     out = join_service_requests(sr, hexes, 0.001)
     assert len(out) == 3
     assert list(out["notification_number"]) == [1, 2, 3]
@@ -114,11 +123,23 @@ def test_join_service_requests_raises_when_over_threshold(hexes):
 
 
 def test_join_drops_leaked_pandas_index_column_but_keeps_real_columns(hexes):
-    sr = pd.DataFrame({"Unnamed: 0": [0], "notification_number": [7], "latitude": [CBD[0]],
-                       "longitude": [CBD[1]], "Unnamed: Not A Number": ["keep"]})
+    sr = pd.DataFrame(
+        {
+            "Unnamed: 0": [0],
+            "notification_number": [7],
+            "latitude": [CBD[0]],
+            "longitude": [CBD[1]],
+            "Unnamed: Not A Number": ["keep"],
+        }
+    )
     out = join_service_requests(sr, hexes, 0.001)
-    assert list(out.columns) == ["notification_number", "latitude", "longitude",
-                                 "Unnamed: Not A Number", INDEX_COLUMN]
+    assert list(out.columns) == [
+        "notification_number",
+        "latitude",
+        "longitude",
+        "Unnamed: Not A Number",
+        INDEX_COLUMN,
+    ]
 
 
 def test_join_refuses_input_that_already_has_index_column(hexes):

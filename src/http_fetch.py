@@ -13,14 +13,15 @@ Strategy (and why):
   5. With no network and no cache, fail with a clear error instead of producing output
      that silently lacks the data.
 """
+
 import http.client
 import logging
 import os
 import random
 import time
 import urllib.request
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable
 
 log = logging.getLogger(__name__)
 
@@ -69,7 +70,9 @@ def fetch_bytes(
                     log.warning("giving up on %s after %d attempts (%s)", url, retries, exc)
                     break
                 delay = min(max_delay, base_delay * 2 ** (attempt - 1)) * rng.uniform(0.5, 1.0)
-                log.warning("fetch failed (%s), retry %d/%d in %.1fs", exc, attempt, retries - 1, delay)
+                log.warning(
+                    "fetch failed (%s), retry %d/%d in %.1fs", exc, attempt, retries - 1, delay
+                )
                 sleep(delay)
                 continue
             _write_atomic(cache_path, payload)
@@ -81,11 +84,15 @@ def fetch_bytes(
         try:
             validate(payload)
         except ValueError as exc:
-            raise FetchError(f"all sources failed and cached copy {cache_path} is invalid: {exc}") from exc
+            raise FetchError(
+                f"all sources failed and cached copy {cache_path} is invalid: {exc}"
+            ) from exc
         age_days = (time.time() - cache_path.stat().st_mtime) / 86400
         log.warning(
             "ALL SOURCES FAILED, falling back to cached copy %s (%.1f days old). Last errors: %s",
-            cache_path, age_days, errors[-1] if errors else "none",
+            cache_path,
+            age_days,
+            errors[-1] if errors else "none",
         )
         return payload, "cache"
 

@@ -1,4 +1,5 @@
 """Small timing helper so every pipeline step logs how long it took."""
+
 import logging
 import time
 from contextlib import contextmanager

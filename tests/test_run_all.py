@@ -19,6 +19,7 @@ def tasks(monkeypatch):
             if isinstance(result, Exception):
                 raise result
             return result
+
         monkeypatch.setattr(module, "main", main)
 
     fake("extraction", run_all.run_extraction)

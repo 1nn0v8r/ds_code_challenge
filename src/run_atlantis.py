@@ -11,6 +11,7 @@ Outputs (all under output/atlantis/):
 Exit codes: 0 ok, 5 wind data unavailable (use --skip-wind to proceed without it),
 6 anonymisation self-check failed.
 """
+
 import argparse
 import json
 import logging
@@ -36,10 +37,15 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
-    parser.add_argument("--skip-wind", action="store_true",
-                        help="continue without wind columns if the wind source is unavailable")
+    parser.add_argument(
+        "--skip-wind",
+        action="store_true",
+        help="continue without wind columns if the wind source is unavailable",
+    )
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s"
+    )
 
     with timed(log, "total pipeline"):
         sr_path = download(BASE_URL + REFERENCE_FILE, args.data_dir / REFERENCE_FILE)

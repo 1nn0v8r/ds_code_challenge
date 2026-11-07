@@ -1,20 +1,36 @@
 import copy
+import json
 import os
 
 import pytest
 
+from aws_client import BUCKET, make_s3_client
 from conformance import ConformanceError, h3_resolution, load_schema, score_collection, validate
-from extract import QUERY_TEMPLATE, parse_collection
-from run_extraction import compare_to_reference
+from extract import QUERY_TEMPLATE, extract_hexes, parse_collection
+from run_extraction import compare_to_reference, load_reference
 
 
 def make_feature(index="88ad361801fffff", lat=-33.86, lon=18.68, resolution=8):
-    ring = [[lon + d, lat + e] for d, e in [(0.003, 0.0), (0.005, 0.004), (0.002, 0.008),
-                                              (-0.003, 0.008), (-0.005, 0.004), (-0.002, 0.0)]]
+    ring = [
+        [lon + d, lat + e]
+        for d, e in [
+            (0.003, 0.0),
+            (0.005, 0.004),
+            (0.002, 0.008),
+            (-0.003, 0.008),
+            (-0.005, 0.004),
+            (-0.002, 0.0),
+        ]
+    ]
     ring.append(ring[0])
     return {
         "type": "Feature",
-        "properties": {"index": index, "centroid_lat": lat + 0.004, "centroid_lon": lon, "resolution": resolution},
+        "properties": {
+            "index": index,
+            "centroid_lat": lat + 0.004,
+            "centroid_lon": lon,
+            "resolution": resolution,
+        },
         "geometry": {"type": "Polygon", "coordinates": [ring]},
     }
 
@@ -22,7 +38,11 @@ def make_feature(index="88ad361801fffff", lat=-33.86, lon=18.68, resolution=8):
 def make_collection(n=3800):
     features = []
     for i in range(n):
-        features.append(make_feature(index=f"88ad{i:011x}", lat=-34.0 + (i % 100) * 0.005, lon=18.4 + (i // 100) * 0.01))
+        features.append(
+            make_feature(
+                index=f"88ad{i:011x}", lat=-34.0 + (i % 100) * 0.005, lon=18.4 + (i // 100) * 0.01
+            )
+        )
     return {
         "type": "FeatureCollection",
         "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
@@ -95,7 +115,6 @@ def test_empty_collection_fails(schema):
 
 def test_parse_collection_rebuilds_header_and_features():
     f = make_feature()
-    import json
     lines = [
         '"type": "FeatureCollection",',
         '"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },',
@@ -128,10 +147,6 @@ def test_compare_to_reference_detects_differences():
 @pytest.mark.network
 @pytest.mark.skipif(not os.environ.get("RUN_NETWORK"), reason="set RUN_NETWORK=1 to hit S3")
 def test_live_extract_matches_reference():
-    from aws_client import BUCKET, make_s3_client
-    from extract import extract_hexes
-    from run_extraction import load_reference
-
     s3 = make_s3_client()
     extracted = extract_hexes(s3, BUCKET)
     assert compare_to_reference(extracted, load_reference(s3))["matches"]

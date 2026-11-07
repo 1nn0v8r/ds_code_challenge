@@ -5,6 +5,7 @@ Usage:  python src/run_extraction.py [--out output/city-hex-polygons-8-extracted
 Exit code is non-zero if the extract does not match the reference file or if schema
 conformance falls below the fail threshold.
 """
+
 import argparse
 import json
 import logging
@@ -35,7 +36,8 @@ def compare_to_reference(extracted: dict, reference: dict) -> dict:
     missing = sorted(ref.keys() - ext.keys())
     extra = sorted(ext.keys() - ref.keys())
     geometry_mismatch = [
-        idx for idx in ref.keys() & ext.keys()
+        idx
+        for idx in ref.keys() & ext.keys()
         if ref[idx]["geometry"] != ext[idx]["geometry"]
         or ref[idx]["properties"]["centroid_lat"] != ext[idx]["properties"]["centroid_lat"]
         or ref[idx]["properties"]["centroid_lon"] != ext[idx]["properties"]["centroid_lon"]
@@ -61,7 +63,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s"
+    )
 
     with timed(log, "total pipeline"):
         s3 = make_s3_client()
@@ -76,8 +80,10 @@ def main(argv=None) -> int:
         comparison = compare_to_reference(extracted, load_reference(s3))
         log.info(
             "reference check: reference=%d extracted=%d missing=%d extra=%d geometry_mismatch=%d",
-            comparison["reference_count"], comparison["extracted_count"],
-            len(comparison["missing"]), len(comparison["extra"]),
+            comparison["reference_count"],
+            comparison["extracted_count"],
+            len(comparison["missing"]),
+            len(comparison["extra"]),
             len(comparison["geometry_mismatch"]),
         )
         if not comparison["matches"]:

@@ -6,6 +6,7 @@ feature per line, so we read it as tab-delimited text (no tabs exist in the file
 backtick quote character never appears) and filter lines server side. Only ~2 MB of the
 108 MB is returned over the wire.
 """
+
 import json
 import logging
 
@@ -19,7 +20,7 @@ SOURCE_KEY = "city-hex-polygons-8-10.geojson"
 QUERY_TEMPLATE = (
     "SELECT s._1 FROM S3Object s "
     "WHERE s._1 LIKE '%\"resolution\": {res} }}%' "
-    "OR s._1 LIKE '%\"type\": \"FeatureCollection\"%' "
+    'OR s._1 LIKE \'%"type": "FeatureCollection"%\' '
     "OR s._1 LIKE '%\"crs\":%'"
 )
 

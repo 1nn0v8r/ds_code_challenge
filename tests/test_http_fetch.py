@@ -1,5 +1,6 @@
 """Tests for http_fetch. Nothing here leaves the machine: most tests script the opener, and
 the real opener is exercised against a throwaway HTTP server on localhost."""
+
 import http.server
 import logging
 import os
@@ -94,7 +95,7 @@ def test_backoff_doubles_with_jitter_and_is_capped(fetch, opener, sleeps):
     with pytest.raises(FetchError):
         fetch([URL_A], retries=5, base_delay=2.0, max_delay=5.0, rng=random.Random(1))
     # Uncapped delays would be 2, 4, 8, 16. Jitter multiplies each by 0.5 to 1.0.
-    for delay, ceiling in zip(sleeps, [2.0, 4.0, 5.0, 5.0]):
+    for delay, ceiling in zip(sleeps, [2.0, 4.0, 5.0, 5.0], strict=True):
         assert ceiling * 0.5 <= delay <= ceiling
 
 
@@ -164,6 +165,7 @@ def test_programming_errors_are_not_swallowed_as_network_failures(fetch, opener)
 
 # The real opener, against a local server, so real urllib behaviour is what gets tested.
 
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.server.seen_user_agents.append(self.headers.get("User-Agent"))
@@ -202,8 +204,13 @@ def server():
 
 def real_fetch(server, tmp_path, retries=2):
     return fetch_bytes(
-        [server.url], tmp_path / "file.bin", validate, retries=retries,
-        opener=_default_opener, sleep=lambda _: None, timeout=5,
+        [server.url],
+        tmp_path / "file.bin",
+        validate,
+        retries=retries,
+        opener=_default_opener,
+        sleep=lambda _: None,
+        timeout=5,
     )
 
 

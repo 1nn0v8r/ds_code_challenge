@@ -10,6 +10,7 @@ under the repository root wherever this is run from.
 Exit code is 0 if every task succeeded, otherwise the exit code of the first task that failed
 (see each task's documentation in docs/).
 """
+
 import argparse
 import logging
 import os
@@ -28,10 +29,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def main(argv=None, root: Path = REPO_ROOT) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--skip-wind", action="store_true",
-                        help="run Task 5 without wind columns if the wind source is unavailable")
+    parser.add_argument(
+        "--skip-wind",
+        action="store_true",
+        help="run Task 5 without wind columns if the wind source is unavailable",
+    )
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s"
+    )
     os.chdir(root)
 
     tasks = [
@@ -51,7 +57,12 @@ def main(argv=None, root: Path = REPO_ROOT) -> int:
             results.append((name, code))
 
     for name, code in results:
-        log.log(logging.INFO if code == 0 else logging.ERROR, "%s: %s", name, "ok" if code == 0 else f"FAILED (exit {code})")
+        log.log(
+            logging.INFO if code == 0 else logging.ERROR,
+            "%s: %s",
+            name,
+            "ok" if code == 0 else f"FAILED (exit {code})",
+        )
     return next((code for _, code in results if code != 0), 0)
 
 

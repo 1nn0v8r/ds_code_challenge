@@ -18,6 +18,7 @@ site's wind would look perfectly plausible.
 Coverage: the Atlantis sensor only reported for 26.5% of 2020 (January to March and October
 to November), so many requests legitimately get no wind. No other site is substituted.
 """
+
 import io
 import logging
 import re
@@ -57,7 +58,7 @@ WIND_COLUMNS = ["wind_timestamp", "wind_speed", "wind_direction"]
 def validate_spreadsheet(payload: bytes) -> None:
     """Reject HTML error pages and truncated downloads before they reach the cache."""
     if not payload.startswith(b"PK"):
-        raise ValueError("payload is not a spreadsheet file (got %r)" % payload[:20])
+        raise ValueError(f"payload is not a spreadsheet file (got {payload[:20]!r})")
     try:
         with zipfile.ZipFile(io.BytesIO(payload)) as zf:
             names = set(zf.namelist())
@@ -88,7 +89,7 @@ def _find_header(raw: pd.DataFrame) -> tuple[int, dict] | None:
         above = raw.iloc[i - 1].astype(object).ffill() if i else [None] * raw.shape[1]
         cells = [
             " ".join(str(v).strip().lower() for v in pair if pd.notna(v))
-            for pair in zip(above, raw.iloc[i])
+            for pair in zip(above, raw.iloc[i], strict=True)
         ]
         speeds, directions, found = [], [], {}
         for j, text in enumerate(cells):
@@ -96,7 +97,9 @@ def _find_header(raw: pd.DataFrame) -> tuple[int, dict] | None:
                 speeds.append(j)
             elif re.search(r"\bdir|direction", text):
                 directions.append(j)
-            elif re.search(r"\btime(stamp)?\b", text) and "date" not in text and "time" not in found:
+            elif (
+                re.search(r"\btime(stamp)?\b", text) and "date" not in text and "time" not in found
+            ):
                 found["time"] = j
             elif "date" in text and "date" not in found:
                 found["date"] = j
@@ -135,18 +138,27 @@ def parse_wind(payload: bytes, tz: str = LOCAL_TZ) -> pd.DataFrame:
             log.info("sheet %r: no wind header found, skipping", name)
             continue
         row, cols = hit
-        body = raw.iloc[row + 1:]
+        body = raw.iloc[row + 1 :]
         if "date" in cols and "time" in cols:
-            stamp = body.iloc[:, cols["date"]].astype(str).str.split(" ").str[0] + " " + \
-                body.iloc[:, cols["time"]].astype(str).str.split(" ").str[-1]
+            stamp = (
+                body.iloc[:, cols["date"]].astype(str).str.split(" ").str[0]
+                + " "
+                + body.iloc[:, cols["time"]].astype(str).str.split(" ").str[-1]
+            )
         else:
             stamp = body.iloc[:, cols.get("date", cols.get("time"))]
         ts = _parse_timestamps(stamp)
-        frames.append(pd.DataFrame({
-            "wind_timestamp": ts,
-            "wind_speed": pd.to_numeric(body.iloc[:, cols["speed"]], errors="coerce"),
-            "wind_direction": pd.to_numeric(body.iloc[:, cols["direction"]], errors="coerce"),
-        }))
+        frames.append(
+            pd.DataFrame(
+                {
+                    "wind_timestamp": ts,
+                    "wind_speed": pd.to_numeric(body.iloc[:, cols["speed"]], errors="coerce"),
+                    "wind_direction": pd.to_numeric(
+                        body.iloc[:, cols["direction"]], errors="coerce"
+                    ),
+                }
+            )
+        )
         log.info("sheet %r: header at row %d, %d data rows", name, row, len(body))
     if not frames:
         raise ValueError("no sheet with date/time, wind speed and wind direction columns")
@@ -179,8 +191,11 @@ def parse_wind(payload: bytes, tz: str = LOCAL_TZ) -> pd.DataFrame:
     wind = wind.sort_values("wind_timestamp").reset_index(drop=True)
     log.info(
         "parsed %d wind readings %s to %s (speed null %d, direction null %d)",
-        len(wind), wind.wind_timestamp.min(), wind.wind_timestamp.max(),
-        wind.wind_speed.isna().sum(), wind.wind_direction.isna().sum(),
+        len(wind),
+        wind.wind_timestamp.min(),
+        wind.wind_timestamp.max(),
+        wind.wind_speed.isna().sum(),
+        wind.wind_direction.isna().sum(),
     )
     return wind
 
@@ -215,16 +230,26 @@ def attach_wind(
     # and as_unit stops differing timestamp resolutions being rejected as incompatible.
     left = pd.DataFrame({"_pos": np.arange(len(sr)), "_created": created.dt.as_unit("us").array})
     left = left.dropna(subset=["_created"]).sort_values("_created")
-    right = pd.DataFrame({
-        "_wind_utc": wind["wind_timestamp"].dt.tz_convert("UTC").dt.as_unit("us").array,
-        "wind_timestamp": wind["wind_timestamp"].array,
-        "wind_speed": wind["wind_speed"].to_numpy(),
-        "wind_direction": wind["wind_direction"].to_numpy(),
-    }).sort_values("_wind_utc")
-    merged = pd.merge_asof(
-        left, right, left_on="_created", right_on="_wind_utc",
-        direction="nearest", tolerance=tolerance,
-    ).set_index("_pos").sort_index()
+    right = pd.DataFrame(
+        {
+            "_wind_utc": wind["wind_timestamp"].dt.tz_convert("UTC").dt.as_unit("us").array,
+            "wind_timestamp": wind["wind_timestamp"].array,
+            "wind_speed": wind["wind_speed"].to_numpy(),
+            "wind_direction": wind["wind_direction"].to_numpy(),
+        }
+    ).sort_values("_wind_utc")
+    merged = (
+        pd.merge_asof(
+            left,
+            right,
+            left_on="_created",
+            right_on="_wind_utc",
+            direction="nearest",
+            tolerance=tolerance,
+        )
+        .set_index("_pos")
+        .sort_index()
+    )
 
     result = sr.copy()
     aligned = merged.reindex(np.arange(len(sr)))
@@ -233,6 +258,9 @@ def attach_wind(
     matched = int(result["wind_speed"].notna().sum())
     log.info(
         "wind join: %d of %d requests matched within %s (%d unmatched)",
-        matched, len(result), tolerance, len(result) - matched,
+        matched,
+        len(result),
+        tolerance,
+        len(result) - matched,
     )
     return result

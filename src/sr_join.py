@@ -10,6 +10,7 @@ a cell outside the grid) also get "0" and count towards the join error rate.
 Exit codes: 0 ok, 3 output differs unexpectedly from sr_hex.csv.gz, 4 join error rate
 above the threshold.
 """
+
 import argparse
 import json
 import logging
@@ -92,7 +93,7 @@ def download(url: str, dest: Path, retries: int = 4, timeout: int = 60) -> Path:
         except OSError as exc:
             if attempt == retries:
                 raise
-            wait = 2 ** attempt
+            wait = 2**attempt
             log.warning("download failed (%s), retry %d/%d in %ds", exc, attempt, retries, wait)
             time.sleep(wait)
     raise AssertionError("unreachable")
@@ -115,7 +116,9 @@ def find_column(df: pd.DataFrame, name: str) -> str:
     raise KeyError(f"column {name!r} not found in {list(df.columns)}")
 
 
-def assign_hex_index(lat: pd.Series, lon: pd.Series, hexes: set[str]) -> tuple[pd.Series, JoinStats]:
+def assign_hex_index(
+    lat: pd.Series, lon: pd.Series, hexes: set[str]
+) -> tuple[pd.Series, JoinStats]:
     """Return (H3 index per row as str, stats). Unjoinable rows get NO_INDEX."""
     lat = pd.to_numeric(lat, errors="coerce")
     lon = pd.to_numeric(lon, errors="coerce")
@@ -127,7 +130,10 @@ def assign_hex_index(lat: pd.Series, lon: pd.Series, hexes: set[str]) -> tuple[p
 
     index = pd.Series(NO_INDEX, index=lat.index, dtype=object)
     cells = pd.Series(
-        [h3.latlng_to_cell(la, lo, RESOLUTION) for la, lo in zip(lat[candidate], lon[candidate])],
+        [
+            h3.latlng_to_cell(la, lo, RESOLUTION)
+            for la, lo in zip(lat[candidate], lon[candidate], strict=True)
+        ],
         index=lat.index[candidate],
         dtype=object,
     )
@@ -156,9 +162,16 @@ def enforce_threshold(stats: JoinStats, max_rate: float) -> None:
     log.info(
         "join summary: total=%d no_coords=%d (partial=%d) with_coords=%d joined=%d "
         "failed=%d (invalid=%d, outside_grid=%d) error_rate=%.6f%% threshold=%.4f%%",
-        stats.total, stats.missing_coords, stats.partial_coords, stats.located, stats.joined,
-        stats.failed, stats.invalid_coords, stats.outside_grid,
-        100 * stats.error_rate, 100 * max_rate,
+        stats.total,
+        stats.missing_coords,
+        stats.partial_coords,
+        stats.located,
+        stats.joined,
+        stats.failed,
+        stats.invalid_coords,
+        stats.outside_grid,
+        100 * stats.error_rate,
+        100 * max_rate,
     )
     if stats.error_rate > max_rate:
         raise JoinThresholdError(
@@ -182,7 +195,9 @@ def compare_to_reference(joined: pd.DataFrame, reference: pd.DataFrame, hexes: s
     only_theirs = theirs.index.difference(ours.index)
     both = ours.index.intersection(theirs.index)
     diff = both[ours[both].values != theirs[both].values]
-    expected = [k for k in diff if ours[k] == NO_INDEX and theirs[k] not in hexes and theirs[k] != NO_INDEX]
+    expected = [
+        k for k in diff if ours[k] == NO_INDEX and theirs[k] not in hexes and theirs[k] != NO_INDEX
+    ]
     unexpected = [k for k in diff if k not in set(expected)]
     return {
         "compared": len(both),
@@ -214,7 +229,9 @@ def main(argv=None) -> int:
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--max-join-error-rate", type=float, default=DEFAULT_MAX_JOIN_ERROR_RATE)
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s: %(message)s"
+    )
 
     with timed(log, "total pipeline"):
         sr_path = download(BASE_URL + SR_FILE, args.data_dir / SR_FILE)
@@ -244,12 +261,17 @@ def main(argv=None) -> int:
         log.info(
             "reference check: compared=%d expected_differences=%d unexpected_differences=%d "
             "only_in_output=%d only_in_reference=%d",
-            result["compared"], len(result["expected_differences"]),
-            len(result["unexpected_differences"]), result["only_in_output"], result["only_in_reference"],
+            result["compared"],
+            len(result["expected_differences"]),
+            len(result["unexpected_differences"]),
+            result["only_in_output"],
+            result["only_in_reference"],
         )
         if result["expected_differences"]:
-            log.info("expected differences (reference cell is outside the City grid): %s",
-                     result["expected_differences"])
+            log.info(
+                "expected differences (reference cell is outside the City grid): %s",
+                result["expected_differences"],
+            )
         if not result["matches"]:
             log.error("output differs unexpectedly from %s", REFERENCE_FILE)
             return 3

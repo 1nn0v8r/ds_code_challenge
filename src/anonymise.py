@@ -37,6 +37,7 @@ Not claimed: for non-sensitive records the hexagon plus 6-hour bucket is a small
 many rows are unique on those two alone. That precision is required by the brief, so the
 residual risk is documented in docs/task5_atlantis.md rather than hidden.
 """
+
 import logging
 import secrets
 from dataclasses import dataclass
@@ -52,9 +53,17 @@ BUCKET = "6h"
 LOCAL_TZ = "Africa/Johannesburg"
 
 DROP_COLUMNS = [
-    "latitude", "longitude", "distance_to_centroid_m", "official_suburb",
-    "notification_number", "reference_number",
-    "wind_timestamp", "wind_speed", "wind_direction", "branch", "section",
+    "latitude",
+    "longitude",
+    "distance_to_centroid_m",
+    "official_suburb",
+    "notification_number",
+    "reference_number",
+    "wind_timestamp",
+    "wind_speed",
+    "wind_direction",
+    "branch",
+    "section",
 ]
 TIME_COLUMNS = ["creation_timestamp", "completion_timestamp"]
 RARE_COLUMNS = ["directorate", "department", "code_group", "code", "cause_code_group", "cause_code"]
@@ -62,13 +71,21 @@ WIND_SPEED_MEAN = "wind_speed_6h_mean"
 WIND_DIRECTION_MEAN = "wind_direction_6h_mean"
 
 SENSITIVE_DEPARTMENTS = {
-    "Revenue", "Valuations", "City Health", "Customer Relations",
+    "Revenue",
+    "Valuations",
+    "City Health",
+    "Customer Relations",
     "Home Ownership Transfer, Tenancy Management and Staff Housing",
 }
 SENSITIVE_CODE_GROUPS = {
-    "REVENUE", "HOUSING - EXISTING", "HEALTH", "VALUATIONS",
-    "ELECTRICITY FINANCIAL AND METER READING", "ELECTRICITY INTERNAL(REVENUE PROTECTION)",
-    "WATER AND SANITATION OR METER QUERIES", "PROPERTY MANAGEMENT",
+    "REVENUE",
+    "HOUSING - EXISTING",
+    "HEALTH",
+    "VALUATIONS",
+    "ELECTRICITY FINANCIAL AND METER READING",
+    "ELECTRICITY INTERNAL(REVENUE PROTECTION)",
+    "WATER AND SANITATION OR METER QUERIES",
+    "PROPERTY MANAGEMENT",
 }
 
 
@@ -81,13 +98,17 @@ class AnonymisationResult:
 
 def floor_to_bucket(series: pd.Series, bucket: str = BUCKET) -> pd.Series:
     """Floor timestamps to a bucket in local time. Blank or unparseable values become empty."""
-    ts = pd.to_datetime(series.replace("", np.nan), utc=True, errors="coerce").dt.tz_convert(LOCAL_TZ)
+    ts = pd.to_datetime(series.replace("", np.nan), utc=True, errors="coerce").dt.tz_convert(
+        LOCAL_TZ
+    )
     floored = ts.dt.floor(bucket)
     return floored.dt.strftime("%Y-%m-%d %H:%M").fillna("")
 
 
 def is_sensitive(df: pd.DataFrame) -> pd.Series:
-    return df["department"].isin(SENSITIVE_DEPARTMENTS) | df["code_group"].isin(SENSITIVE_CODE_GROUPS)
+    return df["department"].isin(SENSITIVE_DEPARTMENTS) | df["code_group"].isin(
+        SENSITIVE_CODE_GROUPS
+    )
 
 
 def summarise_wind_by_bucket(wind: pd.DataFrame) -> pd.DataFrame:
@@ -95,19 +116,25 @@ def summarise_wind_by_bucket(wind: pd.DataFrame) -> pd.DataFrame:
 
     Direction is a circular mean, so 350 and 10 degrees average to 0 rather than 180.
     """
-    radians = np.radians(pd.to_numeric(wind["wind_direction"], errors="coerce").to_numpy(dtype=float))
-    frame = pd.DataFrame({
-        "bucket": floor_to_bucket(wind["wind_timestamp"]).to_numpy(),
-        "speed": pd.to_numeric(wind["wind_speed"], errors="coerce").to_numpy(dtype=float),
-        "sin": np.sin(radians),
-        "cos": np.cos(radians),
-    })
+    radians = np.radians(
+        pd.to_numeric(wind["wind_direction"], errors="coerce").to_numpy(dtype=float)
+    )
+    frame = pd.DataFrame(
+        {
+            "bucket": floor_to_bucket(wind["wind_timestamp"]).to_numpy(),
+            "speed": pd.to_numeric(wind["wind_speed"], errors="coerce").to_numpy(dtype=float),
+            "sin": np.sin(radians),
+            "cos": np.cos(radians),
+        }
+    )
     means = frame[frame["bucket"] != ""].groupby("bucket").mean()
     direction = np.degrees(np.arctan2(means["sin"], means["cos"])) % 360
-    return pd.DataFrame({
-        WIND_SPEED_MEAN: means["speed"].round(1),
-        WIND_DIRECTION_MEAN: direction.round(0) % 360,
-    })
+    return pd.DataFrame(
+        {
+            WIND_SPEED_MEAN: means["speed"].round(1),
+            WIND_DIRECTION_MEAN: direction.round(0) % 360,
+        }
+    )
 
 
 def _review_reasons(work: pd.DataFrame, rare_value_min: int, k_sensitive: int) -> pd.Series:
@@ -120,7 +147,9 @@ def _review_reasons(work: pd.DataFrame, rare_value_min: int, k_sensitive: int) -
         for col in columns:
             counts = kept[col].map(kept[col].value_counts())
             rare |= (counts < rare_value_min) & (kept[col] != "")
-        class_size = kept.groupby(["h3_level8_index", "_bucket", "code_group"])["code"].transform("size")
+        class_size = kept.groupby(["h3_level8_index", "_bucket", "code_group"])["code"].transform(
+            "size"
+        )
         small = is_sensitive(kept) & (class_size < k_sensitive)
         if not (rare | small).any():
             return reason
@@ -143,8 +172,16 @@ def anonymise(
     `seed` exists only for reproducible tests; in production leave it None so the surrogate
     ids come from OS entropy and cannot be reproduced.
     """
-    required = {"latitude", "longitude", "h3_level8_index", "creation_timestamp",
-                "completion_timestamp", "code", "code_group", "department"}
+    required = {
+        "latitude",
+        "longitude",
+        "h3_level8_index",
+        "creation_timestamp",
+        "completion_timestamp",
+        "code",
+        "code_group",
+        "department",
+    }
     missing = required - set(df.columns)
     if missing:
         raise KeyError(f"missing columns: {sorted(missing)}")
@@ -188,9 +225,13 @@ def anonymise(
         "dropped_columns": [c for c in DROP_COLUMNS if c in df.columns],
     }
     log.info(
-        "anonymised %d of %d records; %d held for manual review (%d rare value, %d sensitive small class)",
-        summary["anonymised_records"], summary["input_records"], summary["held_for_review"],
-        summary["held_rare_value"], summary["held_sensitive_small_class"],
+        "anonymised %d of %d records; %d held for manual review "
+        "(%d rare value, %d sensitive small class)",
+        summary["anonymised_records"],
+        summary["input_records"],
+        summary["held_for_review"],
+        summary["held_rare_value"],
+        summary["held_sensitive_small_class"],
     )
     return AnonymisationResult(keep, held, summary)
 
@@ -203,9 +244,12 @@ def check_precision(original: pd.DataFrame, anonymised: pd.DataFrame) -> dict:
             problems.append(f"column {col} still present")
     for col in TIME_COLUMNS:
         stamps = pd.to_datetime(anonymised[col].replace("", np.nan), errors="coerce").dropna()
-        if len(stamps) and not (
-            (stamps.dt.hour % 6 == 0) & (stamps.dt.minute == 0) & (stamps.dt.second == 0)
-        ).all():
+        if (
+            len(stamps)
+            and not (
+                (stamps.dt.hour % 6 == 0) & (stamps.dt.minute == 0) & (stamps.dt.second == 0)
+            ).all()
+        ):
             problems.append(f"{col} not on a 6-hour boundary")
     for col in (WIND_SPEED_MEAN, WIND_DIRECTION_MEAN):
         if col in anonymised.columns:

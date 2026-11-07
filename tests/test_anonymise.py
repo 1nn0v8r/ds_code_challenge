@@ -57,27 +57,37 @@ def common(n=10, start=0, **overrides):
 def readings(*rows):
     """Wind readings as (local time text, speed, direction)."""
     stamps = pd.to_datetime([r[0] for r in rows]).tz_localize("Africa/Johannesburg")
-    return pd.DataFrame({"wind_timestamp": stamps, "wind_speed": [r[1] for r in rows],
-                         "wind_direction": [r[2] for r in rows]})
+    return pd.DataFrame(
+        {
+            "wind_timestamp": stamps,
+            "wind_speed": [r[1] for r in rows],
+            "wind_direction": [r[2] for r in rows],
+        }
+    )
 
 
 # floor_to_bucket
 
-@pytest.mark.parametrize("value, expected", [
-    ("2020-01-01 05:59:59+02:00", "2020-01-01 00:00"),
-    ("2020-01-01 06:00:00+02:00", "2020-01-01 06:00"),
-    ("2020-01-01 23:59:59+02:00", "2020-01-01 18:00"),
-    # 03:59 UTC is 05:59 in Cape Town, so the bucket follows local time.
-    ("2020-01-01 03:59:00+00:00", "2020-01-01 00:00"),
-    ("2019-12-31 23:00:00+00:00", "2020-01-01 00:00"),
-    ("", ""),
-    ("garbage", ""),
-])
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("2020-01-01 05:59:59+02:00", "2020-01-01 00:00"),
+        ("2020-01-01 06:00:00+02:00", "2020-01-01 06:00"),
+        ("2020-01-01 23:59:59+02:00", "2020-01-01 18:00"),
+        # 03:59 UTC is 05:59 in Cape Town, so the bucket follows local time.
+        ("2020-01-01 03:59:00+00:00", "2020-01-01 00:00"),
+        ("2019-12-31 23:00:00+00:00", "2020-01-01 00:00"),
+        ("", ""),
+        ("garbage", ""),
+    ],
+)
 def test_floor_to_bucket_uses_local_six_hour_buckets(value, expected):
     assert floor_to_bucket(pd.Series([value]))[0] == expected
 
 
 # What is removed or coarsened
+
 
 def test_every_identifying_column_is_removed():
     out = anonymise(frame(*common())).anonymised
@@ -114,6 +124,7 @@ def test_blank_completion_stays_blank():
 
 # Surrogate ids
 
+
 def test_record_ids_are_unique_and_unrelated_to_the_originals():
     df = frame(*common(50))
     out = anonymise(df, seed=1).anonymised
@@ -129,7 +140,9 @@ def test_output_order_does_not_reveal_input_order():
 
 def test_seed_reproduces_and_no_seed_does_not():
     # Sorted ids hide the shuffle, so compare which record got which id via a varying column.
-    rows = [record(i, creation_timestamp=f"2020-03-{i % 28 + 1:02d} 08:00:00+02:00") for i in range(200)]
+    rows = [
+        record(i, creation_timestamp=f"2020-03-{i % 28 + 1:02d} 08:00:00+02:00") for i in range(200)
+    ]
     df = frame(*rows)
     seeded = [anonymise(df, seed=7).anonymised["creation_timestamp"].tolist() for _ in range(2)]
     assert seeded[0] == seeded[1]
@@ -138,6 +151,7 @@ def test_seed_reproduces_and_no_seed_does_not():
 
 
 # What is held for review
+
 
 def test_a_rare_code_is_held_at_the_threshold_boundary():
     rows = common(10) + common(4, start=100, code="Bees in Meter")
@@ -179,19 +193,25 @@ def test_holding_records_back_can_make_another_value_rare():
 
 
 def sensitive(number, **overrides):
-    return record(number, department="Revenue", code_group="REVENUE", code="Account Query", **overrides)
+    return record(
+        number, department="Revenue", code_group="REVENUE", code="Account Query", **overrides
+    )
 
 
 def test_small_sensitive_class_is_held():
     # Ten in one hexagon keep the code from being rare; the two elsewhere are a small class.
-    rows = [sensitive(100 + i) for i in range(10)] + [sensitive(200 + i, h3_level8_index=HEX_B) for i in range(2)]
+    rows = [sensitive(100 + i) for i in range(10)] + [
+        sensitive(200 + i, h3_level8_index=HEX_B) for i in range(2)
+    ]
     held = anonymise(frame(*rows)).held_for_review
     assert set(held["review_reason"]) == {"SENSITIVE_SMALL_CLASS"}
     assert set(held["h3_level8_index"]) == {HEX_B}
 
 
 def test_sensitive_class_at_the_k_threshold_is_kept():
-    rows = [sensitive(100 + i) for i in range(10)] + [sensitive(200 + i, h3_level8_index=HEX_B) for i in range(3)]
+    rows = [sensitive(100 + i) for i in range(10)] + [
+        sensitive(200 + i, h3_level8_index=HEX_B) for i in range(3)
+    ]
     assert len(anonymise(frame(*rows)).held_for_review) == 0
 
 
@@ -203,7 +223,9 @@ def test_sensitive_class_is_split_by_six_hour_bucket():
 
 
 def test_small_class_outside_sensitive_areas_is_kept():
-    rows = common(10) + common(5, start=100, h3_level8_index=HEX_B, code_group="ROADS", code="Pothole")
+    rows = common(10) + common(
+        5, start=100, h3_level8_index=HEX_B, code_group="ROADS", code="Pothole"
+    )
     assert len(anonymise(frame(*rows)).held_for_review) == 0
 
 
@@ -221,10 +243,13 @@ def test_every_record_ends_up_in_exactly_one_output():
     assert result.summary["input_records"] == len(rows)
     assert result.summary["anonymised_records"] == len(result.anonymised)
     assert result.summary["held_for_review"] == len(result.held_for_review)
-    assert result.summary["held_rare_value"] + result.summary["held_sensitive_small_class"] == len(result.held_for_review)
+    assert result.summary["held_rare_value"] + result.summary["held_sensitive_small_class"] == len(
+        result.held_for_review
+    )
 
 
 # Refusing bad input
+
 
 def test_missing_required_column_raises():
     with pytest.raises(KeyError):
@@ -251,13 +276,18 @@ def test_the_input_is_not_changed():
 
 # Wind
 
+
 def test_speed_is_the_mean_for_the_bucket():
-    means = summarise_wind_by_bucket(readings(("2020-03-10 06:00", 2.0, 90.0), ("2020-03-10 11:00", 4.0, 90.0)))
+    means = summarise_wind_by_bucket(
+        readings(("2020-03-10 06:00", 2.0, 90.0), ("2020-03-10 11:00", 4.0, 90.0))
+    )
     assert means.loc["2020-03-10 06:00", WIND_SPEED_MEAN] == 3.0
 
 
 def test_direction_is_a_circular_mean():
-    means = summarise_wind_by_bucket(readings(("2020-03-10 06:00", 1.0, 350.0), ("2020-03-10 07:00", 1.0, 10.0)))
+    means = summarise_wind_by_bucket(
+        readings(("2020-03-10 06:00", 1.0, 350.0), ("2020-03-10 07:00", 1.0, 10.0))
+    )
     assert means.loc["2020-03-10 06:00", WIND_DIRECTION_MEAN] == 0.0
 
 
@@ -267,23 +297,36 @@ def test_direction_rounding_cannot_give_360():
 
 
 def test_readings_in_other_buckets_do_not_count():
-    means = summarise_wind_by_bucket(readings(("2020-03-10 05:00", 100.0, 90.0), ("2020-03-10 06:00", 2.0, 90.0),
-                                              ("2020-03-10 12:00", 100.0, 90.0)))
+    means = summarise_wind_by_bucket(
+        readings(
+            ("2020-03-10 05:00", 100.0, 90.0),
+            ("2020-03-10 06:00", 2.0, 90.0),
+            ("2020-03-10 12:00", 100.0, 90.0),
+        )
+    )
     assert means.loc["2020-03-10 06:00", WIND_SPEED_MEAN] == 2.0
 
 
 def test_missing_readings_are_ignored():
-    means = summarise_wind_by_bucket(readings(("2020-03-10 06:00", np.nan, np.nan), ("2020-03-10 07:00", 2.0, 90.0)))
+    means = summarise_wind_by_bucket(
+        readings(("2020-03-10 06:00", np.nan, np.nan), ("2020-03-10 07:00", 2.0, 90.0))
+    )
     assert means.loc["2020-03-10 06:00", WIND_SPEED_MEAN] == 2.0
     assert means.loc["2020-03-10 06:00", WIND_DIRECTION_MEAN] == 90.0
 
 
-WIND = readings(("2020-03-10 06:00", 2.0, 90.0), ("2020-03-10 08:00", 6.0, 90.0), ("2020-03-10 12:00", 9.0, 180.0))
+WIND = readings(
+    ("2020-03-10 06:00", 2.0, 90.0),
+    ("2020-03-10 08:00", 6.0, 90.0),
+    ("2020-03-10 12:00", 9.0, 180.0),
+)
 
 
 def test_requests_in_a_bucket_all_get_the_same_values_whatever_they_matched():
     # Different exact readings per request, which is what would identify the time.
-    rows = [record(i, wind_speed=str(float(i)), wind_direction=str(float(i * 30))) for i in range(10)]
+    rows = [
+        record(i, wind_speed=str(float(i)), wind_direction=str(float(i * 30))) for i in range(10)
+    ]
     out = anonymise(frame(*rows), wind=WIND).anonymised
     assert set(out[WIND_SPEED_MEAN]) == {4.0}
     assert set(out[WIND_DIRECTION_MEAN]) == {90.0}
@@ -314,6 +357,7 @@ def test_skipping_wind_entirely_gives_no_warning(caplog):
 
 
 # check_precision
+
 
 def clean_output():
     df = frame(*common())

@@ -1,4 +1,5 @@
 """S3 client for the challenge bucket, using the creds the challenge publishes."""
+
 import json
 import urllib.request
 

@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "anonymise", "atlantis_subsample", "aws_client", "conformance", "extract", "http_fetch",
+    "run_all", "run_atlantis", "run_extraction", "sr_join", "timing", "wind",
+]
