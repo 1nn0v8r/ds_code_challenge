@@ -25,8 +25,10 @@ Options (add them after the command):
   `PYTHON_BIN=/usr/bin/python3.14 sh scripts/run.sh`, or in PowerShell
   `$env:PYTHON_BIN = "C:\Path\To\python.exe"`.
 
-It needs no input and takes under a minute. All inputs are downloaded automatically to `data/`,
-and results are written to `output/`. It exits `0` if every task succeeded.
+It needs no input. A first run takes one to two minutes (in CI, 1m 11s on Ubuntu and 1m 33s on
+Windows, including installing packages and downloading the data). All inputs are downloaded
+automatically to `data/`, and results are written to `output/`. It exits `0` if every task
+succeeded.
 
 PowerShell may print log lines in red. That is normal. Check the exit code and the
 `Task N: ... ok` lines at the end.
@@ -56,8 +58,10 @@ was the full pipeline. The Windows rows also ran the test suite (254 passed, 3 s
 | Linux container, `python:3.15-slim` | 3.15 | Pass |
 | Python 3.9 and 3.11 | 3.9, 3.11 | Stopped with "Python 3.12 or newer is required" (not supported) |
 
-Not yet tested: macOS, and Windows with Python 3.12. The scripts are written to work on both, but
-run them once before relying on them there.
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) also runs on every push to
+`main`: lint and format checks, the test suite on Ubuntu, macOS and Windows with Python 3.12 to
+3.15, and the full pipeline on Ubuntu and Windows with Python 3.13. The full pipeline has not been
+run on macOS.
 
 The Linux rows ran in Debian-based Docker images, not on a physical Linux machine.
 
@@ -70,11 +74,7 @@ the `shapely` DLL load in testing.
 | 2. Join requests to hexagons | `src/sr_join.py` | `output/sr_hex_joined.csv.gz` | [docs/task2_sr_hex_join.md](docs/task2_sr_hex_join.md) |
 | 5. Atlantis, wind, anonymisation | `src/run_atlantis.py` | `output/atlantis/` | [docs/task5_atlantis.md](docs/task5_atlantis.md) |
 
-To run the tests, which need no network:
-
-```bash
-.venv/Scripts/python -m pytest
-```
+To run the tests, which need no network, use the `--test` or `-Test` option above.
 
 Things to know before relying on the output:
 
