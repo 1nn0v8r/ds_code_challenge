@@ -7,17 +7,39 @@
 
 This fork completes the Data Engineering tasks: sections 1, 2 and 5 of the challenge below.
 
-**To run everything, execute `src/run_all.py`, using Python 3.13:**
+**To run everything, use one script. It creates the environment, installs the requirements and runs the pipeline.**
+
+Requires Python 3.12 or newer (3.13 recommended).
 
 ```bash
-python3.13 -m venv .venv                                  # on Windows: py -3.13 -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt   # on Linux or macOS: .venv/bin/python
-.venv/Scripts/python src/run_all.py
+# macOS, Linux, or Git Bash on Windows
+sh scripts/run.sh
+```
+
+```bash
+# Windows PowerShell (or double-click scripts\run.bat)
+powershell -ExecutionPolicy Bypass -File scripts\run.ps1
 ```
 
 It needs no input and takes under a minute. All inputs are downloaded automatically to `data/`,
-and results are written to `output/`. It exits `0` if every task succeeded. Tested on Python 3.13
-on Windows only. On Python 3.15, `PyYAML` had no pre-built package when this was tested.
+and results are written to `output/`. It exits `0` if every task succeeded. Pass `--skip-wind` to
+run without wind data. To run the tests, pass `--test` (`sh`) or `-Test` (PowerShell). To use a
+specific Python, set `PYTHON_BIN` to its path (for example `PYTHON_BIN=/usr/bin/python3.14 sh scripts/run.sh`,
+or `$env:PYTHON_BIN = "C:\Python315\python.exe"` in PowerShell).
+
+Manual steps, if you prefer them:
+
+```bash
+python3.13 -m venv .venv                                  # on Windows: py -3.13 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt       # on Windows: .venv\Scripts\python
+.venv/bin/python src/run_all.py                           # on Windows: .venv\Scripts\python src\run_all.py
+```
+
+Tested with the launcher scripts on Windows (Python 3.13 and 3.15, PowerShell and Git Bash) and in
+fresh Linux containers (Python 3.12, 3.13, 3.14 and 3.15). Python 3.9 and 3.11 are not supported:
+the pinned `numpy` and `boto3` need 3.12 or newer, and the scripts stop with a clear message.
+On Windows, keep the project path short (under about 150 characters), because longer paths break the
+`shapely` DLL load.
 
 | Task | Script | Output | Method and decisions |
 |---|---|---|---|

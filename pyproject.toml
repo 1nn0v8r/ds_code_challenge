@@ -1,3 +1,7 @@
+[project]
+name = "ds-code-challenge"
+requires-python = ">=3.12"
+
 [tool.coverage.report]
 exclude_also = ['if __name__ == "__main__":']
 
