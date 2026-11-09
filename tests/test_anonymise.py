@@ -86,6 +86,13 @@ def test_floor_to_bucket_uses_local_six_hour_buckets(value, expected):
     assert floor_to_bucket(pd.Series([value]))[0] == expected
 
 
+def test_floor_to_bucket_keeps_mixed_timestamp_formats():
+    # Whole seconds and fractional seconds in one column must both be bucketed,
+    # not blanked because pandas guessed the format from the first value.
+    values = pd.Series(["2020-01-01 05:59:59+02:00", "2020-01-01 06:00:00.500+02:00"])
+    assert list(floor_to_bucket(values)) == ["2020-01-01 00:00", "2020-01-01 06:00"]
+
+
 # What is removed or coarsened
 
 
