@@ -1,12 +1,15 @@
-"""Task 5.1: subsample service requests within 1 arc-minute of the Atlantis centroid.
+"""Task 5.1: subsample service requests within 1 arc-minute of an official suburb's centroid.
 
-Suburb choice: ATLANTIS, taken from the "Major suburbs" layer of the Western Cape GIS server.
-The "Official Planning Suburbs" layers on that server list only ATLANTIS INDUSTRIAL under
-that name, which is an industrial area rather than the suburb of Atlantis, so they are not
-used.
+Suburb choice: AVONDALE - WESFLEUR, a residential official suburb in Atlantis, taken from the
+"Official Planning Suburbs (February 2019)" layer of the Western Cape GIS server. The brief asks
+for "an official suburb in the proximity of Atlantis". No official suburb is called just
+ATLANTIS, and the only one with Atlantis in its name, ATLANTIS INDUSTRIAL, is an industrial area.
+
+The full name must be matched exactly. AVONDALE - PAROW is a different suburb about 37 km away,
+and the January 2017 layer calls both of them just AVONDALE, so that layer cannot be used.
 
 Centroid method (computed, not hard coded):
-  1. Download the ATLANTIS polygon from that layer (ArcGIS REST query, GeoJSON, WGS84).
+  1. Download the suburb polygon from that layer (ArcGIS REST query, GeoJSON, WGS84).
   2. Project to UTM zone 34S (EPSG:32734, metres, suits the Cape) and take the polygon's
      area-weighted centroid there, then convert back to lat/lon. A centroid taken directly
      in degrees distorts east-west distances; for this polygon the difference is under
@@ -37,10 +40,10 @@ log = logging.getLogger(__name__)
 
 SUBURB_LAYER_URL = (
     "https://gis.westerncape.gov.za/server2/rest/services/SpatialDataWarehouse/"
-    "CoCT_Management_Boundaries/MapServer/15/query"
+    "CoCT_Management_Boundaries/MapServer/23/query"
 )
-SUBURB_NAME_FIELD = "SBRB_NAME"
-SUBURB_NAME = "ATLANTIS"
+SUBURB_NAME_FIELD = "OFC_SBRB_N"
+SUBURB_NAME = "AVONDALE - WESFLEUR"
 METRIC_CRS = "EPSG:32734"
 ARC_MINUTE_M = 1852.0
 GEOD = Geod(ellps="WGS84")

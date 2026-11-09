@@ -1,5 +1,6 @@
 import json
 import os
+from urllib.parse import parse_qs, urlparse
 
 import numpy as np
 import pandas as pd
@@ -213,15 +214,20 @@ FEATURE = {
 NAMED = {"type": "Feature", "properties": {SUBURB_NAME_FIELD: SUBURB_NAME}}
 
 
-def test_the_suburb_is_atlantis_from_the_major_suburbs_layer():
-    assert SUBURB_NAME == "ATLANTIS"
-    assert SUBURB_NAME_FIELD == "SBRB_NAME"
-    assert "/MapServer/15/query" in suburb_query_url()
+def test_the_suburb_is_avondale_wesfleur_from_the_2019_official_layer():
+    assert SUBURB_NAME == "AVONDALE - WESFLEUR"
+    assert SUBURB_NAME_FIELD == "OFC_SBRB_N"
+    assert "/MapServer/23/query" in suburb_query_url()
+
+
+def test_the_query_matches_the_full_name_and_not_part_of_it():
+    where = parse_qs(urlparse(suburb_query_url()).query)["where"][0]
+    assert where == "UPPER(OFC_SBRB_N)='AVONDALE - WESFLEUR'"
 
 
 def test_query_url_asks_for_the_named_suburb_as_wgs84_geojson():
-    url = suburb_query_url("atlantis")
-    assert "ATLANTIS" in url
+    url = suburb_query_url("avondale - wesfleur")
+    assert "AVONDALE" in url
     assert "outSR=4326" in url
     assert "f=geojson" in url
     assert "returnGeometry=true" in url
@@ -256,7 +262,21 @@ def test_valid_suburb_payload_passes():
         collection(
             {
                 **NAMED,
-                "properties": {"OFC_SBRB_N": "ATLANTIS INDUSTRIAL"},
+                "properties": {SUBURB_NAME_FIELD: "AVONDALE - PAROW"},
+                "geometry": polygon(square(*CENTRE, 0.01)),
+            }
+        ),
+        collection(
+            {
+                **NAMED,
+                "properties": {SUBURB_NAME_FIELD: "AVONDALE"},
+                "geometry": polygon(square(*CENTRE, 0.01)),
+            }
+        ),
+        collection(
+            {
+                **NAMED,
+                "properties": {"SBRB_NAME": SUBURB_NAME},
                 "geometry": polygon(square(*CENTRE, 0.01)),
             }
         ),
