@@ -7,39 +7,62 @@
 
 This fork completes the Data Engineering tasks: sections 1, 2 and 5 of the challenge below.
 
-**To run everything, use one script. It creates the environment, installs the requirements and runs the pipeline.**
+**To run everything, use one script.** It creates a virtual environment in `.venv`, installs the
+requirements, and runs the pipeline. You need Python 3.12 or newer installed. Python 3.13 is
+recommended. The scripts find it for you.
 
-Requires Python 3.12 or newer (3.13 recommended).
+| Your system | Command (run from the repo folder) |
+|---|---|
+| macOS, Linux, or Git Bash on Windows | `sh scripts/run.sh` |
+| Windows PowerShell | `powershell -ExecutionPolicy Bypass -File scripts\run.ps1` |
+| Windows, double-click | `scripts\run.bat` |
 
-```bash
-# macOS, Linux, or Git Bash on Windows
-sh scripts/run.sh
-```
+Options (add them after the command):
 
-```bash
-# Windows PowerShell (or double-click scripts\run.bat)
-powershell -ExecutionPolicy Bypass -File scripts\run.ps1
-```
+- `--skip-wind` runs without the wind data. Use it if the wind source is down.
+- `--test` (Linux and macOS) or `-Test` (PowerShell) runs the test suite instead. It needs no network.
+- To use a specific Python, set `PYTHON_BIN` to its path first. For example,
+  `PYTHON_BIN=/usr/bin/python3.14 sh scripts/run.sh`, or in PowerShell
+  `$env:PYTHON_BIN = "C:\Path\To\python.exe"`.
 
 It needs no input and takes under a minute. All inputs are downloaded automatically to `data/`,
-and results are written to `output/`. It exits `0` if every task succeeded. Pass `--skip-wind` to
-run without wind data. To run the tests, pass `--test` (`sh`) or `-Test` (PowerShell). To use a
-specific Python, set `PYTHON_BIN` to its path (for example `PYTHON_BIN=/usr/bin/python3.14 sh scripts/run.sh`,
-or `$env:PYTHON_BIN = "C:\Python315\python.exe"` in PowerShell).
+and results are written to `output/`. It exits `0` if every task succeeded.
 
-Manual steps, if you prefer them:
+PowerShell may print log lines in red. That is normal. Check the exit code and the
+`Task N: ... ok` lines at the end.
+
+Manual steps, if you do not want the scripts:
 
 ```bash
-python3.13 -m venv .venv                                  # on Windows: py -3.13 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt       # on Windows: .venv\Scripts\python
-.venv/bin/python src/run_all.py                           # on Windows: .venv\Scripts\python src\run_all.py
+python3.13 -m venv .venv                                  # Windows: py -3.13 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt       # Windows: .venv\Scripts\python -m pip install -r requirements.txt
+.venv/bin/python src/run_all.py                           # Windows: .venv\Scripts\python src\run_all.py
 ```
 
-Tested with the launcher scripts on Windows (Python 3.13 and 3.15, PowerShell and Git Bash) and in
-fresh Linux containers (Python 3.12, 3.13, 3.14 and 3.15). Python 3.9 and 3.11 are not supported:
-the pinned `numpy` and `boto3` need 3.12 or newer, and the scripts stop with a clear message.
-On Windows, keep the project path short (under about 150 characters), because longer paths break the
-`shapely` DLL load.
+### Tested environments
+
+Each row was run from a fresh copy of the repo with no `data/`, `output/` or `.venv`. Each run
+was the full pipeline. The Windows rows also ran the test suite (254 passed, 3 skipped).
+
+| Environment | Python | Result |
+|---|---|---|
+| Windows 11, PowerShell (`run.ps1`) | 3.13.4 | Pass |
+| Windows 11, PowerShell (`run.ps1`) | 3.14.10 (set with `PYTHON_BIN`) | Pass |
+| Windows 11, PowerShell (`run.ps1`) | 3.15.2 (set with `PYTHON_BIN`) | Pass |
+| Windows 11, Git Bash (`run.sh`) | 3.15.2 | Pass |
+| Linux container, `python:3.12-slim` | 3.12 | Pass |
+| Linux container, `python:3.13-slim` | 3.13 | Pass |
+| Linux container, `python:3.14-slim` | 3.14 | Pass |
+| Linux container, `python:3.15-slim` | 3.15 | Pass |
+| Python 3.9 and 3.11 | 3.9, 3.11 | Stopped with "Python 3.12 or newer is required" (not supported) |
+
+Not yet tested: macOS, and Windows with Python 3.12. The scripts are written to work on both, but
+run them once before relying on them there.
+
+The Linux rows ran in Debian-based Docker images, not on a physical Linux machine.
+
+Paths on Windows: keep the project folder short, under about 150 characters. Longer paths broke
+the `shapely` DLL load in testing.
 
 | Task | Script | Output | Method and decisions |
 |---|---|---|---|
