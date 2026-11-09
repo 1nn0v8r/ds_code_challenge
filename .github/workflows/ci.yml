@@ -1,0 +1,110 @@
+name: CI
+
+# Runs on every push to main. Stages run in order: lint, then tests, then the
+# full pipeline. Each later stage only starts when the earlier one passes.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Stage 1: style and format checks (ruff, the versions pinned in requirements.txt)
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ruff
+        run: python -m pip install --disable-pip-version-check ruff==0.17.4
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Format check
+        run: python -m ruff format --check .
+
+  # Stage 2: unit tests through the same launcher scripts a new user runs.
+  # Covers Python 3.12 to 3.15 on Linux, macOS and Windows.
+  test:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.12", "3.13", "3.14", "3.15"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        id: py
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+
+      - name: Run tests (Linux and macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          PYTHON_BIN: ${{ steps.py.outputs.python-path }}
+        run: sh scripts/run.sh --test
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          PYTHON_BIN: ${{ steps.py.outputs.python-path }}
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run.ps1 -Test
+
+  # Stage 3: the full pipeline end to end, as a new user would run it.
+  # Needs network access to the S3 bucket and the City's GIS server.
+  # Outputs are NOT uploaded as artifacts: output/atlantis/ holds personal data.
+  pipeline:
+    name: Full pipeline (${{ matrix.os }}, Python ${{ matrix.python }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        id: py
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Run pipeline (Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          PYTHON_BIN: ${{ steps.py.outputs.python-path }}
+        run: sh scripts/run.sh
+
+      - name: Run pipeline (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          PYTHON_BIN: ${{ steps.py.outputs.python-path }}
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run.ps1
